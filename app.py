@@ -10,7 +10,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>All-in-One Power Downloader</title>
+    <title>Ultimate Media Downloader</title>
     <style>
         body { background: #07090e; color: white; font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .box { background: #111827; padding: 25px; border-radius: 14px; width: 100%; max-width: 480px; box-shadow: 0 8px 25px rgba(0,0,0,0.6); text-align: center; border: 1px solid #1f2937; }
@@ -25,15 +25,15 @@ HTML_TEMPLATE = """
         .q-card { background: #1f2937; padding: 12px; border-radius: 8px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #374151; }
         .dl-btn { background: #22c55e; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: bold; }
         .dl-btn:hover { background: #16a34a; }
-        .error { color: #ef4444; font-size: 14px; margin-top: 10px; }
+        .error { color: #ef4444; font-size: 14px; margin-top: 10px; word-break: break-all; }
     </style>
 </head>
 <body>
     <div class="box">
-        <h1>⚡ Power Downloader</h1>
-        <p>YouTube, Instagram & Facebook Video Downloader</p>
+        <h1>⚡ Ultimate Downloader</h1>
+        <p>YouTube, Instagram & Facebook</p>
         <div class="input-group">
-            <input type="text" id="urlInput" placeholder="Paste YouTube/Insta/FB Link Here...">
+            <input type="text" id="urlInput" placeholder="Paste Link Here...">
         </div>
         <button class="btn" onclick="fetchMedia()">Get Download Link</button>
         <div id="result"></div>
@@ -44,13 +44,13 @@ HTML_TEMPLATE = """
             const url = document.getElementById('urlInput').value;
             const resultDiv = document.getElementById('result');
             if (!url) {
-                resultDiv.innerHTML = '<div class="error">Pehle link paste karein!</div>';
+                resultDiv.innerHTML = '<div class="error">Please enter a link!</div>';
                 return;
             }
-            resultDiv.innerHTML = '<p style="color:#f59e0b;">⏳ Links fetch ho rahi hain, thoda intezaar karein...</p>';
+            resultDiv.innerHTML = '<p style="color:#f59e0b;">⏳ Fetching media, please wait...</p>';
             
             try {
-                const res = fq = await fetch('/fetch', {
+                const res = await fetch('/fetch', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: url })
@@ -64,10 +64,10 @@ HTML_TEMPLATE = """
                     });
                     resultDiv.innerHTML = html;
                 } else {
-                    resultDiv.innerHTML = `<div class="error">${data.error || 'Video fetch nahi ho paya.'}</div>`;
+                    resultDiv.innerHTML = `<div class="error">${data.error || 'Failed to fetch video.'}</div>`;
                 }
             } catch (e) {
-                resultDiv.innerHTML = '<div class="error">Network error aa gaya!</div>';
+                resultDiv.innerHTML = '<div class="error">Network error occurred!</div>';
             }
         }
     </script>
@@ -90,7 +90,17 @@ def fetch_media():
         'quiet': True,
         'format': 'best',
         'noplaylist': True,
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
+        'geo_bypass': True,
+        'nocheckcertificate': True,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Sec-Fetch-Mode': 'navigate',
+        },
+        'extractor_args': {
+            'youtube': {'player_client': ['android', 'web']}
+        }
     }
     
     try:
@@ -100,12 +110,17 @@ def fetch_media():
             download_url = info.get('url') or (info.get('formats')[-1]['url'] if info.get('formats') else None)
             
             if not download_url:
-                return jsonify({"error": "Direct stream URL nahi mil paya."}), 400
+                return jsonify({"error": "Could not extract direct stream URL."}), 400
             
             formats_list = [{'url': download_url}]
             return jsonify({"title": title, "formats": formats_list})
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        err_msg = str(e)
+        if "429" in err_msg:
+            err_msg = "Instagram rate-limited the server (Error 429). Try again later."
+        elif "Sign in" in err_msg or "bot" in err_msg:
+            err_msg = "YouTube blocked the server IP. Try another video link."
+        return jsonify({"error": err_msg}), 400
 
 @app.route("/proxy_download")
 def proxy_download():
