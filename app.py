@@ -10,7 +10,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Media Downloader</title>
+    <title>Pro Media Downloader</title>
     <style>
         body { background: #07090e; color: white; font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .box { background: #111827; padding: 25px; border-radius: 14px; width: 100%; max-width: 480px; box-shadow: 0 8px 25px rgba(0,0,0,0.6); text-align: center; border: 1px solid #1f2937; }
@@ -30,7 +30,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="box">
-        <h1>⚡ Ultimate Downloader</h1>
+        <h1>🚀 Pro Downloader</h1>
         <p>YouTube, Instagram & Facebook</p>
         <div class="input-group">
             <input type="text" id="urlInput" placeholder="Paste Link Here...">
@@ -86,20 +86,15 @@ def fetch_media():
     if not video_url:
         return jsonify({"error": "No URL provided"}), 400
     
+    # Advanced options to bypass IP blocking using mobile clients
     ydl_opts = {
         'quiet': True,
         'format': 'best',
         'noplaylist': True,
         'geo_bypass': True,
         'nocheckcertificate': True,
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-us,en;q=0.5',
-            'Sec-Fetch-Mode': 'navigate',
-        },
         'extractor_args': {
-            'youtube': {'player_client': ['android', 'web']}
+            'youtube': {'player_client': ['ios', 'mweb', 'android']}
         }
     }
     
@@ -116,10 +111,10 @@ def fetch_media():
             return jsonify({"title": title, "formats": formats_list})
     except Exception as e:
         err_msg = str(e)
-        if "429" in err_msg:
-            err_msg = "Instagram rate-limited the server (Error 429). Try again later."
+        if "429" in err_msg or "Too Many Requests" in err_msg:
+            err_msg = "Platform rate-limited the server. Please try again after a minute."
         elif "Sign in" in err_msg or "bot" in err_msg:
-            err_msg = "YouTube blocked the server IP. Try another video link."
+            err_msg = "IP restriction triggered. Mobile client rotation active, try another link."
         return jsonify({"error": err_msg}), 400
 
 @app.route("/proxy_download")
