@@ -10,7 +10,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Media Downloader</title>
+    <title>Media Downloader</title>
     <style>
         body { background: #07090e; color: white; font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .box { background: #111827; padding: 25px; border-radius: 14px; width: 100%; max-width: 480px; box-shadow: 0 8px 25px rgba(0,0,0,0.6); text-align: center; border: 1px solid #1f2937; }
@@ -25,12 +25,12 @@ HTML_TEMPLATE = """
         .q-card { background: #1f2937; padding: 12px; border-radius: 8px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #374151; }
         .dl-btn { background: #22c55e; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: bold; }
         .dl-btn:hover { background: #16a34a; }
-        .error { color: #ef4444; font-size: 14px; margin-top: 10px; word-break: break-all; }
+        .error { color: #ef4444; font-size: 13px; margin-top: 10px; word-break: break-all; }
     </style>
 </head>
 <body>
     <div class="box">
-        <h1>🚀 Pro Downloader</h1>
+        <h1>🚀 Media Downloader</h1>
         <p>YouTube, Instagram & Facebook</p>
         <div class="input-group">
             <input type="text" id="urlInput" placeholder="Paste Link Here...">
@@ -55,7 +55,15 @@ HTML_TEMPLATE = """
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: url })
                 });
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (err) {
+                    resultDiv.innerHTML = `<div class="error">Server Error: ${text.slice(0, 100)}</div>`;
+                    return;
+                }
+
                 if (res.ok) {
                     let html = `<h4 style="color:#38bdf8; font-size:13px; margin-bottom:8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${data.title}</h4>`;
                     data.formats.forEach(f => {
@@ -67,7 +75,7 @@ HTML_TEMPLATE = """
                     resultDiv.innerHTML = `<div class="error">${data.error || 'Failed to fetch video.'}</div>`;
                 }
             } catch (e) {
-                resultDiv.innerHTML = '<div class="error">Network error occurred!</div>';
+                resultDiv.innerHTML = `<div class="error">Network error: ${e.message}</div>`;
             }
         }
     </script>
@@ -81,41 +89,35 @@ def home():
 
 @app.route("/fetch", methods=["POST"])
 def fetch_media():
-    data = request.json
+    data = request.json or {}
     video_url = data.get("url")
     if not video_url:
         return jsonify({"error": "No URL provided"}), 400
     
-    # Advanced options to bypass IP blocking using mobile clients
     ydl_opts = {
         'quiet': True,
         'format': 'best',
         'noplaylist': True,
         'geo_bypass': True,
         'nocheckcertificate': True,
-        'extractor_args': {
-            'youtube': {'player_client': ['ios', 'mweb', 'android']}
-        }
     }
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=False)
             title = info.get('title', 'video').replace('/', '_').replace('\\', '_')
-            download_url = info.get('url') or (info.get('formats')[-1]['url'] if info.get('formats') else None)
+            download_url = info.get('url')
+            if not download_url and 'formats' in info:
+                formats = info['formats']
+                best_fmt = formats[-1] if formats else {}
+                download_url = best_fmt.get('url')
             
             if not download_url:
                 return jsonify({"error": "Could not extract direct stream URL."}), 400
             
-            formats_list = [{'url': download_url}]
-            return jsonify({"title": title, "formats": formats_list})
+            return jsonify({"title": title, "formats": [{'url': download_url}]})
     except Exception as e:
-        err_msg = str(e)
-        if "429" in err_msg or "Too Many Requests" in err_msg:
-            err_msg = "Platform rate-limited the server. Please try again after a minute."
-        elif "Sign in" in err_msg or "bot" in err_msg:
-            err_msg = "IP restriction triggered. Mobile client rotation active, try another link."
-        return jsonify({"error": err_msg}), 400
+        return jsonify({"error": str(e)}), 400
 
 @app.route("/proxy_download")
 def proxy_download():
@@ -134,4 +136,3 @@ def proxy_download():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
-    
